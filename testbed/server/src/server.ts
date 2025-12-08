@@ -197,8 +197,10 @@ connection.onInitialized((params) => {
 		connection.console.log('Workspace folder changed received');
 	});
 	void connection.workspace.getWorkspaceFolders().then(folders => {
-		for (const folder of folders) {
-			connection.console.log(`Get workspace folders: ${folder.name} ${folder.uri}`);
+		if (folders !== null && folders !== undefined) {
+			for (const folder of folders) {
+				connection.console.log(`Get workspace folders: ${folder.name} ${folder.uri}`);
+			}
 		}
 	});
 	const registrationOptions: SemanticTokensRegistrationOptions = {
@@ -602,7 +604,7 @@ connection.onRequest('addTwenty', (param) => {
 	return { value: param.value + 20 };
 });
 
-const not: ProtocolNotificationType<string[], void> = new ProtocolNotificationType<string[], void>('testbed/notification');
+const not: NotificationType<string[]> = new NotificationType<string[]>('testbed/notification');
 connection.onNotification(not, (arr) => {
 	connection.console.log('Is array: ' + Array.isArray(arr));
 });
