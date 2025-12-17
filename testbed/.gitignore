@@ -1,0 +1,13 @@
+# Local History (VSCode extension)
+.history/
+
+# Node modules
+node_modules/
+
+# Build output
+out/
+*.tsbuildinfo
+
+# Logs
+*.log
+

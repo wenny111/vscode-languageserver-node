@@ -125,8 +125,8 @@ connection.onInitialize((params, cancel, progress): Thenable<InitializeResult> |
 				textDocumentSync: TextDocumentSyncKind.Full,
 				hoverProvider: true,
 				completionProvider: {
-					triggerCharacters: ['.'],
-					allCommitCharacters: [';'],
+					triggerCharacters: ['.'], // 触发补全的特殊字符
+					allCommitCharacters: [';'], // 所有可能的提交字符
 					resolveProvider: true,
 				},
 				signatureHelpProvider: {
@@ -286,7 +286,7 @@ connection.onHover((textPosition): Hover => {
 	return {
 		contents: {
 			kind: MarkupKind.PlainText,
-			value: 'foo\nbar'
+			value: 'hello\nworld'
 		}
 		// contents: {
 		// 	kind: MarkupKind.Markdown,
@@ -382,6 +382,7 @@ connection.languages.diagnostics.onWorkspace(async (params, token, _, resultProg
 	return { items: [] };
 });
 
+// server 的补全 = 语言能力
 connection.onCompletion((params, token): CompletionList => {
 	const result: CompletionItem[] = [];
 	let item = CompletionItem.create('foo');

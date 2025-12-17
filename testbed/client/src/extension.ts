@@ -5,7 +5,7 @@
 'use strict';
 
 import * as path from 'path';
-import { commands, ExtensionContext, workspace, window, Uri } from 'vscode';
+import { commands, ExtensionContext, workspace, window, Uri, CompletionItem, CompletionItemKind } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, NotificationType } from 'vscode-languageclient/node';
 
 let client: LanguageClient;
@@ -20,44 +20,136 @@ export async function activate(context: ExtensionContext) {
 		debug: { module, /* runtime: 'node.exe', */ transport: TransportKind.ipc, options: debugOptions}
 	};
 
+	// 🔥🔥🔥 重点在这里：添加中间件 🔥🔥🔥
+	// const clientOptions: LanguageClientOptions = {
+	// 	documentSelector: [
+	// 		{ language: 'bat' },
+	// 		{ language: 'bat', notebook: '*' },
+	// 		{ scheme: 'file', pattern: '**/.vscode/test.txt' }
+	// 	],
+	// 	synchronize: {
+	// 		// configurationSection: 'testbed'
+	// 		// fileEvents: workspace.createFileSystemWatcher('**/*'),
+	// 	},
+	// 	diagnosticCollectionName: 'markers',
+	// 	initializationOptions: 'Chris it gets passed to the server',
+	// 	progressOnInitialization: true,
+	// 	stdioEncoding: 'utf8',
+	// 	// uriConverters: {
+	// 	// 	code2Protocol: (value: Uri) => {
+	// 	// 		return `vscode-${value.toString()}`
+	// 	// 	},
+	// 	// 	protocol2Code: (value: string) => {
+	// 	// 		return Uri.parse(value.substring(7))
+	// 	// 	}
+	// 	// },
+	// 	middleware: {
+	// 		didOpen: (document, next) => {
+	// 			return next(document);
+	// 		}
+	// 	},
+	// 	diagnosticPullOptions: {
+	// 		onTabs: true,
+	// 		onChange: true,
+	// 		onFocus: true,
+	// 		match: (selector, resource) => {
+	// 			const fsPath = resource.fsPath;
+	// 			return path.extname(fsPath) === '.bat';
+	// 		}
+	// 	},
+	// 	textSynchronization: {
+	// 		delayOpenNotifications: false
+	// 	}
+	// };
+
+	//
 	const clientOptions: LanguageClientOptions = {
-		documentSelector: [
-			{ language: 'bat' },
-			{ language: 'bat', notebook: '*' },
-			{ scheme: 'file', pattern: '**/.vscode/test.txt' }
-		],
+		documentSelector: [{ scheme: 'file', language: 'bat' }],
 		synchronize: {
-			// configurationSection: 'testbed'
-			// fileEvents: workspace.createFileSystemWatcher('**/*'),
+			fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
 		},
-		diagnosticCollectionName: 'markers',
-		initializationOptions: 'Chris it gets passed to the server',
-		progressOnInitialization: true,
-		stdioEncoding: 'utf8',
-		// uriConverters: {
-		// 	code2Protocol: (value: Uri) => {
-		// 		return `vscode-${value.toString()}`
+		// middleware: {
+		// 	provideCompletionItem: async (document, position, context, token, next) => {
+		// 		console.log('正在拦截补全请求！光标位置:', position.line, position.character);
+
+		// 		// 1. 这里就是插入 AI 逻辑的地方
+		// 		// const aiResult = await askGPT(document.getText(), position);
+
+		// 		// 2. 调用 next(...) 继续执行原本的 LSP 逻辑 (去问 Server)
+		// 		const result = await next(document, position, context, token);
+
+		// 		// 3. 可以在这里修改 result，比如把 AI 的结果合并进去
+		// 		// 如果需要添加自定义补全项，可以这样做：
+		// 		// const aiItem = new CompletionItem('Hello AI', CompletionItemKind.Text);
+		// 		// if (Array.isArray(result)) {
+		// 		//     return [...result, aiItem];
+		// 		// } else if (result) {
+		// 		//     result.items.push(aiItem);
+		// 		//     return result;
+		// 		// }
+
+		// 		// return result;
+		// 		return [{ label: 'Hello LSP Server', kind: CompletionItemKind.Text  }];
 		// 	},
-		// 	protocol2Code: (value: string) => {
-		// 		return Uri.parse(value.substring(7))
-		// 	}
-		// },
+		// 	// resolveCompletionItem: async (item, token, next) => {
+		// 	// 	console.log('正在拦截补全请求！光标位置:', item.label);
+		// 	// 	const result = await next(item, token);
+		// 	// 	return result;
+		// 	// }
+		// }
+
+
+
+		// middleware = 编辑器体验控制层
 		middleware: {
-			didOpen: (document, next) => {
-				return next(document);
+			provideCompletionItem: async (document, position, context, token, next) => {
+				console.log('⚡ 中间件触发：开始并行请求');
+
+				// 1. 请求 LSP 原生结果 (这是原本的逻辑)
+				// 注意：next 返回的可能是数组，也可能是 CompletionList 对象，需要标准化
+				const lspPromise = next(document, position, context, token);
+
+				// 2. 请求 AI 结果 (模拟异步网络请求)
+				const aiPromise = (async () => {
+					// 模拟耗时 50ms
+					await new Promise(r => setTimeout(r, 50));
+					// 假设 AI 觉得这里应该填 "Console.AI_Log"
+					return ['Console.AI_Log', 'Console.Magic_Fix'];
+				})();
+
+				// 3. 等待两者都完成 (Promise.all 并行加速)
+				const [lspResult, aiResult] = await Promise.all([lspPromise, aiPromise]);
+
+				// 4. 标准化 LSP 结果 (LSP 可能返回 null, Array, 或 {items: Array})
+				let finalItems: any[] = [];
+				if (Array.isArray(lspResult)) {
+					finalItems = lspResult;
+				} else if (lspResult && lspResult.items) {
+					finalItems = lspResult.items;
+				}
+
+				// 5. ⭐️ 核心合并逻辑 ⭐️
+				// 把 AI 的字符串转换成 CompletionItem
+				const aiItems = aiResult.map(text => {
+					return {
+						label: `✨ ${text}`, // 加个星星图标区分
+						kind: 1, // Text = 1, Method = 2, ...
+						detail: 'Generated by AI',
+						insertText: text,
+						// 🔥 关键：通过 sortText 让 AI 排在最前面
+						// '0' 比 'a' 小，所以会排在前面
+						sortText: '0_ai_' + text
+					};
+				});
+
+				// 6. 拼接数组
+				const merged = [...aiItems, ...finalItems];
+
+				console.log(`✅ 合并完成：AI(${aiItems.length}) + LSP(${finalItems.length})`);
+
+				// 7. 返回给 VSCode
+				return merged;
 			}
-		},
-		diagnosticPullOptions: {
-			onTabs: true,
-			onChange: true,
-			onFocus: true,
-			match: (selector, resource) => {
-				const fsPath = resource.fsPath;
-				return path.extname(fsPath) === '.bat';
-			}
-		},
-		textSynchronization: {
-			delayOpenNotifications: false
 		}
 	};
 
